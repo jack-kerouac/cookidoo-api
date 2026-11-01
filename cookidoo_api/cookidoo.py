@@ -1657,6 +1657,10 @@ class Cookidoo:
             ),
             "sign custom recipe image upload",
         )
+        if not isinstance(signature.get("signature"), str):
+            raise CookidooParseException(
+                "Sign custom recipe image upload failed during parsing of request response."
+            )
 
         form = FormData()
         form.add_field("api_key", CUSTOM_RECIPE_IMAGE_UPLOAD_API_KEY)
@@ -1664,12 +1668,16 @@ class Cookidoo:
         form.add_field("source", "uw")
         form.add_field("upload_preset", CUSTOM_RECIPE_IMAGE_UPLOAD_PRESET)
         form.add_field("file", image, filename="image")
+        form.add_field("signature", signature["signature"])
         try:
-            form.add_field("signature", cast(str, signature["signature"]))
             async with self._session.post(
                 CUSTOM_RECIPE_IMAGE_UPLOAD_URL, data=form
             ) as r:
-                r.raise_for_status()
+                if not r.ok:
+                    raise CookidooRequestException(
+                        f"Upload custom recipe image was rejected "
+                        f"(status {r.status}): {await r.text()}"
+                    )
                 uploaded = self._ensure_mapping(
                     await r.json(), "upload custom recipe image"
                 )
@@ -1699,7 +1707,7 @@ class Cookidoo:
                 "Upload custom recipe image failed during parsing of request response."
             ) from e
 
-        if not _CUSTOM_RECIPE_IMAGE_RE.fullmatch(path):
+        if not _CUSTOM_RECIPE_IMAGE_PATH_RE.fullmatch(path):
             raise CookidooParseException(
                 f"Upload custom recipe image returned an unsupported image: {path}"
             )

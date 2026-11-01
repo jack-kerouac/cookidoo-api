@@ -5208,6 +5208,49 @@ class TestUploadCustomRecipeImage:
         with pytest.raises(CookidooParseException):
             await cookidoo.upload_custom_recipe_image(b"image-bytes")
 
+    async def test_upload_custom_recipe_image_non_string_signature(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Raise a parse exception when the signature is not a string."""
+        mocked.post(
+            self.SIGNATURE_URL, payload={"signature": None}, status=HTTPStatus.OK
+        )
+
+        with pytest.raises(CookidooParseException):
+            await cookidoo.upload_custom_recipe_image(b"image-bytes")
+
+    async def test_upload_custom_recipe_image_rejected_reports_reason(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Surface Cloudinary's rejection reason in the request exception."""
+        mocked.post(
+            self.SIGNATURE_URL, payload={"signature": "abc123"}, status=HTTPStatus.OK
+        )
+        mocked.post(
+            self.UPLOAD_URL,
+            payload={"error": {"message": "File size too large."}},
+            status=HTTPStatus.BAD_REQUEST,
+        )
+
+        with pytest.raises(CookidooRequestException, match="File size too large"):
+            await cookidoo.upload_custom_recipe_image(b"image-bytes")
+
+    async def test_upload_custom_recipe_image_missing_public_id(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Raise a parse exception instead of returning a bogus ``None.jpg``."""
+        mocked.post(
+            self.SIGNATURE_URL, payload={"signature": "abc123"}, status=HTTPStatus.OK
+        )
+        mocked.post(
+            self.UPLOAD_URL,
+            payload={"public_id": None, "format": "jpg"},
+            status=HTTPStatus.OK,
+        )
+
+        with pytest.raises(CookidooParseException):
+            await cookidoo.upload_custom_recipe_image(b"image-bytes")
+
 
 class TestProcessRecipeSteps:
     """Tests for _process_recipe_steps helper."""
